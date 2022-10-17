@@ -7,7 +7,7 @@ cd  $WORKSPACE/${CODEBASE_DIR}
 
 logInfoMessage "I've recieved below arguments [$@]"
 
-sonar-scanner $@
+sonar-scanner ${SONAR_ARGS}
 
 if [ $? -eq 0 ]
 then
