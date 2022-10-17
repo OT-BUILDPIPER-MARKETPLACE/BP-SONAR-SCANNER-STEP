@@ -11,6 +11,8 @@ docker build -t ot/sonar_scanner:0.1 .
 ```
 * Do local testing
 ```
+sonar-scanner -Dsonar.login=<token> -Dsonar.host.url=https://sonarcloud.io/ -Dsonar.projectKey=<project-key> -Dsonar.organization=<org-key> -Dsonar.java.binaries=target
+
 docker run -it --rm -v $PWD:/src -e WORKSPACE=/ -e CODEBASE_DIR=src ot/sonar_scanner:0.1
 ```
 
