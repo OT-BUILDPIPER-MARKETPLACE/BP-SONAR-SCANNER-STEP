@@ -7,7 +7,11 @@ A BP step to do sonar scanning
 ```
 git submodule init
 git submodule update
-docker build -t ot/sonar_scanner:0.1:0.1 .
+docker build -t ot/sonar_scanner:0.1 .
+```
+* Do local testing
+```
+docker run -it --rm -v $PWD:/src -e WORKSPACE=/ -e CODEBASE_DIR=src ot/sonar_scanner:0.1
 ```
 
 ## Reference
