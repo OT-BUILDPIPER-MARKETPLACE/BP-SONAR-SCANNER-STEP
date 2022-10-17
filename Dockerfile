@@ -1,5 +1,7 @@
 FROM sonarsource/sonar-scanner-cli
 
+RUN apk add --no-cache --upgrade bash
+RUN apk add jq
 COPY BP-BASE-SHELL-STEPS/functions.sh .
 
 ENV SONAR_HOST_URL ""
