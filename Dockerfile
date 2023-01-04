@@ -4,7 +4,7 @@ RUN apk add --no-cache --upgrade bash
 RUN apk add jq
 
 COPY BP-BASE-SHELL-STEPS/functions.sh .
-
+COPY sonar-scanner.properties /opt/sonar-scanner/conf/sonar-scanner.properties 
 ENV SONAR_ARGS "-Dproject.settings=sonar.properties"
 ENV SONAR_TOKEN ""
 
