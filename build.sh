@@ -29,7 +29,7 @@ fi
 
 validateQualityGate() {
 	sleep 30s
-QGSTATUS=`curl -s https://bp-sonar-temp.skuad.in/api/qualitygates/project_status?projectKey=$PROJECTKEY | jq '.projectStatus.status' | tr -d '"'`
+QGSTATUS=`curl -s $SONARURL/api/qualitygates/project_status?projectKey=$PROJECTKEY | jq '.projectStatus.status' | tr -d '"'`
 echo $QGSTATUS
 if [ "$QGSTATUS" = "OK" ]
 then
