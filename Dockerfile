@@ -3,10 +3,10 @@ FROM sonarsource/sonar-scanner-cli
 RUN apk add --no-cache --upgrade bash
 RUN apk add jq
 
-COPY BP-BASE-SHELL-STEPS/functions.sh .
-COPY BP-BASE-SHELL-STEPS/log-functions.sh .
+COPY BP-BASE-SHELL-STEPS .
 
-ENV SONAR_ARGS "-Dproject.settings=sonar.properties"
+ENV SONAR_TOKEN ""
+ENV SONAR_URL ""
 ENV SONAR_TOKEN ""
 
 ENV ACTIVITY_SUB_TASK_CODE BP-SONAR-SCANNER
