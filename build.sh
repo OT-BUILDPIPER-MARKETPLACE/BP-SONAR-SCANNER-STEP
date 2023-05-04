@@ -1,13 +1,17 @@
 #!/bin/bash
+
 source functions.sh
+source log-functions.sh
+source str-functions.sh
+source file-functions.sh
+source aws-functions.sh
 
 logInfoMessage "I'll scan the code available at [$WORKSPACE] and have mounted at [$CODEBASE_DIR]"
-sleep  $SLEEP_DURATION
-cd  $WORKSPACE/${CODEBASE_DIR}
-
+sleep $SLEEP_DURATION
+cd $WORKSPACE
 logInfoMessage "I've recieved below arguments [$@]"
 
-sonar-scanner ${SONAR_ARGS}
+sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$CODEBASE_DIR
 
 if [ $? -eq 0 ]
 then
