@@ -11,7 +11,8 @@ sleep $SLEEP_DURATION
 cd $WORKSPACE
 logInfoMessage "I've recieved below arguments [$@]"
 
-sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$CODEBASE_DIR
+sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$CODEBASE_DIR "$SONAR_ARGS"
+
 
 if [ $? -eq 0 ]
 then
