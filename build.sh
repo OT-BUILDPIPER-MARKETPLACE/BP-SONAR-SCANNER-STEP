@@ -8,11 +8,17 @@ source aws-functions.sh
 
 logInfoMessage "I'll scan the code available at [$WORKSPACE] and have mounted at [$CODEBASE_DIR]"
 sleep $SLEEP_DURATION
-cd $WORKSPACE
+
+code="$WORKSPACE/$CODEBASE_DIR" 
 logInfoMessage "I've recieved below arguments [$@]"
 
-sonar-scanner -Dsonar.login=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$CODEBASE_DIR "$SONAR_ARGS"
+cd $code
 
+sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$PROJECT_KEY -Dsonar.organization=$ORG_NAME -Dsonar.java.binaries=.  
+
+json=$(curl -u $SONAR_TOKEN: -X GET "${SONAR_URL}api/measures/component?component=${PROJECT_KEY}&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" | jq '.')
+
+echo $json | jq -r '.component.measures | map("\(.metric): \(.value)") | join(", ")'  > reports/sonar_summary.csv
 
 if [ $? -eq 0 ]
 then
