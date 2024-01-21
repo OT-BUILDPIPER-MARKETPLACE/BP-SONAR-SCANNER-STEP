@@ -3,7 +3,8 @@ FROM sonarsource/sonar-scanner-cli
 RUN apk add --no-cache --upgrade bash
 RUN apk add jq
 
-COPY BP-BASE-SHELL-STEPS .
+ADD BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
+ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
 
 ENV SONAR_TOKEN ""
 ENV SONAR_URL ""
