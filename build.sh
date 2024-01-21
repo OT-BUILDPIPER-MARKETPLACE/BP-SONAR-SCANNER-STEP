@@ -39,7 +39,7 @@ export report_file_path=null
 generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
 logInfoMessage "Sonar Scanning json to be sent to MI server"
 cat sonar.mi
-sendMIData sonar.mi http://122.160.30.218:60901/
+sendMIData sonar.mi http://122.160.30.218:60901
 
 saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}
 # if [ $? -eq 0 ]
