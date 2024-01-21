@@ -30,8 +30,8 @@ cat reports/sonar_summary.csv
 export base64EncodedResponse=`encodeFileContent reports/sonar_summary.csv`
 
 export application=ot-demo-ms
-export environment=dev-main
-export service=salary
+export environment=`getProjectEnv`
+export service=`getServiceName`
 export organization=bp
 export source_key=sonar
 export report_file_path=null
