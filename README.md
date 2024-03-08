@@ -27,3 +27,7 @@ docker run -it --rm -v $PWD:/src -e WORKSPACE=/ -e CODEBASE_DIR=src ot/sonar_sca
 ```
 ## Reference
 * https://docs.sonarqube.org/latest/analysis/scan/sonarscanner/
+
+
+
+registry.buildpiper.in/sonar_scanner:0.1

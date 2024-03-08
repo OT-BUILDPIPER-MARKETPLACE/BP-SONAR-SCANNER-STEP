@@ -1,4 +1,4 @@
-FROM sonarsource/sonar-scanner-cli
+FROM sonarsource/sonar-scanner-cli:5.0
 
 RUN apk add --no-cache --upgrade bash
 RUN apk add jq
