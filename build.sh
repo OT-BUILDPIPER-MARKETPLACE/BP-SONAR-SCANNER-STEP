@@ -29,17 +29,17 @@ logInfoMessage "Executing command to present the accumulated summary for Sonar S
 cat reports/sonar_summary.csv
 export base64EncodedResponse=`encodeFileContent reports/sonar_summary.csv`
 
-export application=ot-demo-ms
+export application=$APPLICATION_NAME
 export environment=`getProjectEnv`
 export service=`getServiceName`
-export organization=bp
-export source_key=sonar
-export report_file_path=null
+export organization=$ORGANIZATION
+export source_key=$SOURCE_KEY
+export report_file_path=$REPORT_FILE_PATH
 
 generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
 logInfoMessage "Sonar Scanning json to be sent to MI server"
 cat sonar.mi
-sendMIData sonar.mi http://122.160.30.218:60901
+sendMIData sonar.mi ${MI_SERVER_ADDRESS}
 
 saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}
 # if [ $? -eq 0 ]

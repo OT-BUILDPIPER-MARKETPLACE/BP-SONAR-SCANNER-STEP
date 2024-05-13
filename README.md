@@ -18,7 +18,7 @@ sonar-scanner -Dsonar.login=<token> -Dsonar.host.url=https://sonarcloud.io/ -Dso
 
 If you want to pass all arguments at runtime
 ```
-docker run -it --rm -v $PWD:/src -e WORKSPACE=/ -e CODEBASE_DIR=src ot/sonar_scanner:0.1 " -Dsonar.login=<token> -Dsonar.host.url=https://sonarcloud.io/ -Dsonar.projectKey=<project-key> -Dsonar.organization=<org-key> -Dsonar.java.binaries=target"
+docker run -it --rm -v $PWD:/src -e WORKSPACE=/ -e CODEBASE_DIR=src -e APPLICATION_NAME=<application_name> -e ORGANIZATION=<organization_name> -e SOURCE_KEY=<source_key> -e REPORT_FILE_PATH=<report_file_path> -e MI_SERVER_ADDRESS=<mi_server_address> ot/sonar_scanner:0.1 " -Dsonar.login=<token> -Dsonar.host.url=https://sonarcloud.io/ -Dsonar.projectKey=<project-key> -Dsonar.organization=<org-key> -Dsonar.java.binaries=target"
 ```
 
 Preferred one
