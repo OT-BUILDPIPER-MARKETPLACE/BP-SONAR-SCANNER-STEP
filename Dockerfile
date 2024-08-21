@@ -1,8 +1,9 @@
 FROM sonarsource/sonar-scanner-cli
 
+USER root
+
 RUN apk add --no-cache --upgrade bash
-RUN apk add jq
-RUN apk add gettext libintl curl
+RUN apk add jq gettext libintl curl
 
 ADD BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
 ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
@@ -17,8 +18,9 @@ ENV SONAR_URL ""
 ENV SONAR_ARGS ""
 ENV MI_SERVER_ADDRESS ""
 ENV ACTIVITY_SUB_TASK_CODE BP-SONAR-SCANNER
-ENV SLEEP_DURATION 5s
+ENV SLEEP_DURATION 30s
 ENV VALIDATION_FAILURE_ACTION WARNING
+ENV NODE_OPTIONS --max-old-space-size=8192
 
 COPY build.sh .
 ENTRYPOINT [ "./build.sh" ]
