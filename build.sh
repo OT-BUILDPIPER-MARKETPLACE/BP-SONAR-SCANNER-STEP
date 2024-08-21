@@ -26,6 +26,7 @@ fi
 
 # Initialize task status
 TASK_STATUS=0
+WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
 JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
 
