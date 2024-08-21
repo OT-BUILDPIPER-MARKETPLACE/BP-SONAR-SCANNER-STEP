@@ -8,11 +8,38 @@ source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
 
+
+# Check required environment variables
+required_vars=("SONAR_TOKEN" "SONAR_URL" "APPLICATION_NAME" "ORGANIZATION" "SOURCE_KEY" "REPORT_FILE_PATH" "MI_SERVER_ADDRESS")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        missing_vars+=($var)
+    fi
+done
+
+if [ ${#missing_vars[@]} -ne 0 ]; then
+    echo "[ERROR] The following required environment variables are missing: ${missing_vars[*]}"
+    exit 1
+fi
+
 # Initialize task status
 TASK_STATUS=0
 SLEEP_DURATION=${SLEEP_DURATION:-30}
+JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
+
 # Log information about the task
 logInfoMessage "I'll scan the code available at [$WORKSPACE] and have mounted at [$CODEBASE_DIR]"
+
+# Suggest customizing JAVA_BINARIES
+if [ "$JAVA_BINARIES" == "target/classes" ]; then
+    logInfoMessage "[SUGGESTION] The JAVA_BINARIES variable is currently set to the default value of 'target/classes'."
+    logInfoMessage "[SUGGESTION] If your compiled Java classes are located in a different directory, you can set the JAVA_BINARIES environment variable to that directory's path."
+    logInfoMessage "[SUGGESTION] Example: export JAVA_BINARIES=target/classes"
+else
+    logInfoMessage "Using JAVA_BINARIES set to: $JAVA_BINARIES"
+fi
 
 # Define the code directory
 code="$WORKSPACE/$CODEBASE_DIR"
@@ -22,7 +49,7 @@ logInfoMessage "I've received the following arguments: [$@]"
 cd $code
 
 # Run the SonarQube scanner
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=. $SONAR_ARGS
+sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES $SONAR_ARGS
 TASK_STATUS=$?
 
 # Require sleep of 30 sec after publishing the data to fetch back the report
