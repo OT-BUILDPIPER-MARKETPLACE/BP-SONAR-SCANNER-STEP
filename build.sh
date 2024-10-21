@@ -7,22 +7,8 @@ source /opt/buildpiper/shell-functions/log-functions.sh
 source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
+source getDynamicVars.sh
 
-
-# Check required environment variables
-required_vars=("SONAR_TOKEN" "SONAR_URL" "APPLICATION_NAME" "ORGANIZATION" "SOURCE_KEY" "REPORT_FILE_PATH" "MI_SERVER_ADDRESS")
-missing_vars=()
-
-for var in "${required_vars[@]}"; do
-    if [ -z "${!var}" ]; then
-        missing_vars+=($var)
-    fi
-done
-
-if [ ${#missing_vars[@]} -ne 0 ]; then
-    echo "[ERROR] The following required environment variables are missing: ${missing_vars[*]}"
-    exit 1
-fi
 
 # Initialize task status
 TASK_STATUS=0
@@ -49,12 +35,77 @@ logInfoMessage "I've received the following arguments: [$@]"
 # Change to the code directory
 cd $code
 
+# Main logic to check conditions and call fetch_service_details
+if [ -n "$SOURCE_VARIABLE_REPO" ]; then
+    # Check if TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, and DNS_URL are provided
+    if [ -n "$SONAR_TOKEN" ] && [ -n "$SONAR_URL" ]; then
+        echo "SONAR_TOKEN and SONAR_URLare provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
+    else
+        echo "Fetching details from $SOURCE_VARIABLE_REPO as SONAR_TOKEN and SONAR_URL are not provided."
+        fetch_service_details
+    fi
+else
+    logErrorMessage "SOURCE_VARIABLE_REPO is not defined. Skipping fetching details from $SOURCE_VARIABLE_REPO."
+fi
+
+# Check required environment variables
+required_vars=("SONAR_TOKEN" "SONAR_URL" "APPLICATION_NAME" "ORGANIZATION" "SOURCE_KEY" "REPORT_FILE_PATH" "MI_SERVER_ADDRESS")
+missing_vars=()
+
+for var in "${required_vars[@]}"; do
+    if [ -z "${!var}" ]; then
+        missing_vars+=($var)
+    fi
+done
+
+if [ ${#missing_vars[@]} -ne 0 ]; then
+    echo "[ERROR] The following required environment variables are missing: ${missing_vars[*]}"
+    exit 1
+fi
+
 # Run the SonarQube scanner
 sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES $SONAR_ARGS
 TASK_STATUS=$?
 
+# Set default value for SONAR_GATE_CHECK if not already set
+SONAR_GATE_CHECK=${SONAR_GATE_CHECK:-false}
+
+# Set local sleep duration specifically for this part of the script
+localSleepDuration=${SLEEP_DURATION:-300}
+
+# Require sleep of 300 sec after publishing the data to fetch back the report
+if [ "$SONAR_GATE_CHECK" == "true" ]; then
+    logInfoMessage "Waiting for Quality Gate Check for "$localSleepDuration" Seconds"
+    sleep "$localSleepDuration"
+    
+    # Get SonarQube Quality Check Status
+    statusResponse=$(curl -s -u "$SONAR_TOKEN": "$SONAR_URL/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
+    
+    # Check if curl was successful
+    if [ $? -ne 0 ]; then
+        logInfoMessage "Failed to fetch SonarQube quality gate status!"
+        exit 1
+    fi
+
+    gateStatus=$(echo "$statusResponse" | jq -r .projectStatus.status)
+
+    # Check if the status is "ERROR" (i.e., quality gate failed)
+    if [ "$gateStatus" == "ERROR" ]; then
+        logInfoMessage "SonarQube quality gate failed!"
+        exit 1
+    else
+        logInfoMessage "SonarQube quality gate passed."
+        exit 0
+    fi
+else
+    logInfoMessage "Skipping Quality Gates Test"
+fi
+
+TASK_STATUS=$?
+
 # Require sleep of 30 sec after publishing the data to fetch back the report
-sleep $SLEEP_DURATION       
+SLEEP_DURATION=${SLEEP_DURATION:-30}
+sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
 response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)

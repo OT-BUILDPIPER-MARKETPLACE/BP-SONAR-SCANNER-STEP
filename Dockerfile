@@ -2,8 +2,27 @@ FROM sonarsource/sonar-scanner-cli
 
 USER root
 
-RUN apk add --no-cache --upgrade bash
-RUN apk add jq gettext libintl curl
+# Install bash, curl, and other dependencies
+RUN apk add --no-cache --upgrade bash \
+    gettext \
+    git \
+    libintl \
+    curl \
+    jq \
+    python3 \
+    py3-pip \
+    gcc \
+    libffi-dev \
+    musl-dev \
+    openssl-dev \
+    python3-dev \
+    make
+
+# Create a Python virtual environment
+RUN python3 -m venv /root/venv
+
+# Activate the virtual environment and install the cryptography library
+RUN . /root/venv/bin/activate && pip install --no-cache-dir cryptography
 
 ADD BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
 ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
@@ -23,5 +42,10 @@ ENV SLEEP_DURATION 30s
 ENV VALIDATION_FAILURE_ACTION WARNING
 ENV NODE_OPTIONS --max-old-space-size=8192
 
+# Use the virtual environment's Python for the container
+ENV PATH="/root/venv/bin:$PATH"
+
 COPY build.sh .
+COPY getDynamicVars.sh .
+
 ENTRYPOINT [ "./build.sh" ]
