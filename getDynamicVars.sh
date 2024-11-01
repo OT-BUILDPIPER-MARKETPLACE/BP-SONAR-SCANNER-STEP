@@ -44,20 +44,20 @@ function fetch_service_details() {
     # Find the service details in the JSON file
     echo "Extracting service details for $CODEBASE_DIR..."
 
-    # Function to get the deployment service name
-    function getDeploymentServiceName() {
-      DEPLOY_SERVICE_NAME=$(jq -r '.k8s_manifest[] | select(.k8s_manifest_type == "service") | .metadata.name' < /bp/data/deploy_stateless_app)
-      echo "$DEPLOY_SERVICE_NAME"
-    }
+    # # Function to get the deployment service name
+    # function getDeploymentServiceName() {
+    #   DEPLOY_SERVICE_NAME=$(jq -r '.k8s_manifest[] | select(.k8s_manifest_type == "service") | .metadata.name' < /bp/data/deploy_stateless_app)
+    #   echo "$DEPLOY_SERVICE_NAME"
+    # }
 
-    # Get the deployment service name
-    DEPLOY_SERVICE_NAME=`getDeploymentServiceName`
+    # # Get the deployment service name
+    # DEPLOY_SERVICE_NAME=`getDeploymentServiceName`
 
     # Check if CODEBASE_DIR is not set or empty, use getServiceName to get a default value
-    if [ -z "$CODEBASE_DIR" ]; then
-        CODEBASE_DIR=$(echo "$DEPLOY_SERVICE_NAME" | sed -E 's/-(dev|prod|qa|staging|uat)-.*$//')
-        echo "CODEBASE_DIR was empty, using deployment service name: $CODEBASE_DIR"
-    fi
+    # if [ -z "$CODEBASE_DIR" ]; then
+    #     CODEBASE_DIR=$(echo "$DEPLOY_SERVICE_NAME" | sed -E 's/-(dev|prod|qa|staging|uat)-.*$//')
+    #     echo "CODEBASE_DIR was empty, using deployment service name: $CODEBASE_DIR"
+    # fi
 
     local service_data=$(jq -r --arg CODEBASE_DIR "$CODEBASE_DIR" '.repositories[] | select(.bitbucketRepoName == $CODEBASE_DIR)' "$json_file")
 
