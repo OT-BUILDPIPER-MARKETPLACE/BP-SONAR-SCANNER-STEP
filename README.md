@@ -18,7 +18,7 @@ git submodule update
 docker build -t registry.buildpiper.in/okts/sonar-scan:tag .
 
 # Image with dynamic vars handling
-docker build -t registry.buildpiper.in/okts/sonar-scan:dynamic-vars .
+docker build -t registry.buildpiper.in/okts/sonar-scan:0.5-mi .
 ```
 **Note:** Use the `v0.7` branch for `BP-BASE-SHELL-STEPS`.
 
