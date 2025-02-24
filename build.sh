@@ -79,7 +79,7 @@ if [ "$SONAR_GATE_CHECK" == "true" ]; then
     sleep "$localSleepDuration"
     
     # Get SonarQube Quality Check Status
-    statusResponse=$(curl -s -u "$SONAR_TOKEN": "$SONAR_URL/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
+    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
     
     # Check if curl was successful
     if [ $? -ne 0 ]; then
