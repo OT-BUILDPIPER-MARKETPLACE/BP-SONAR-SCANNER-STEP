@@ -7,6 +7,7 @@ source /opt/buildpiper/shell-functions/log-functions.sh
 source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
+source /opt/buildpiper/shell-functions/getDataFile.sh
 source getDynamicVars.sh
 
 
@@ -79,7 +80,7 @@ if [ "$SONAR_GATE_CHECK" == "true" ]; then
     sleep "$localSleepDuration"
     
     # Get SonarQube Quality Check Status
-    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
+    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
     
     # Check if curl was successful
     if [ $? -ne 0 ]; then
@@ -108,7 +109,7 @@ SLEEP_DURATION=${SLEEP_DURATION:-30}
 sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
-response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
+response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
 
 # Extract the HTTP status code
 http_code=$(echo "$response" | tail -n1)
@@ -168,8 +169,11 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         # Log the execution of the summary presentation
         logInfoMessage "Executing command to present the accumulated summary for Sonar Scanning in the Application Code"
 
-        # Display the summary
-        cat reports/sonar_summary.csv
+        # Display the summary CSV
+        logInfoMessage "Displaying Sonar Report: reports/sonar_summary.csv"
+        echo "================================================================================"
+        cat reports/sonar_summary.csv | tty-table
+        echo "================================================================================"
 
         # Encode the report file content
         export base64EncodedResponse=$(encodeFileContent reports/sonar_summary.csv)

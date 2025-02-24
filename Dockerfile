@@ -2,6 +2,11 @@ FROM sonarsource/sonar-scanner-cli
 
 USER root
 
+RUN apk add --no-cache --upgrade \
+    bash jq gettext   nodejs npm && \
+    npm install -g tty-table && \
+    rm -rf /var/cache/apk/*
+
 # Install bash, curl, and other dependencies
 RUN apk add --no-cache --upgrade bash \
     gettext \
@@ -16,7 +21,11 @@ RUN apk add --no-cache --upgrade bash \
     musl-dev \
     openssl-dev \
     python3-dev \
-    make
+    make \
+    nodejs \
+    npm && \
+    npm install -g tty-table && \
+    rm -rf /var/cache/apk/*
 
 # Create a Python virtual environment
 RUN python3 -m venv /root/venv
