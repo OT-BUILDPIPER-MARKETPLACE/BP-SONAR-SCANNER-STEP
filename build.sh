@@ -108,8 +108,9 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
     # Check if the sonar_summary.csv file was created successfully
     if [ ! -f reports/sonar_summary.csv ]; then
         logErrorMessage "Failed to create reports/sonar_summary.csv"
-        echo "Build unsuccessful"
-        MI_SEND_STATUS=1
+        echo "Report Generation Unsuccessful"
+        TASK_STATUS=1
+        # MI_SEND_STATUS=1
     else
         # List the generated report file
         ls reports/sonar_summary.csv
@@ -121,48 +122,43 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         cat reports/sonar_summary.csv
 
         # Encode the report file content
-        export base64EncodedResponse=$(encodeFileContent reports/sonar_summary.csv)
+        # export base64EncodedResponse=$(encodeFileContent reports/sonar_summary.csv)
 
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
-        export organization=$ORGANIZATION
-        export source_key=$SOURCE_KEY
-        export report_file_path=$REPORT_FILE_PATH
+        # # Set environment variables for MI data
+        # export application=$APPLICATION_NAME
+        # export environment=$(getProjectEnv)
+        # export service=$(getServiceName)
+        # export organization=$ORGANIZATION
+        # export source_key=$SOURCE_KEY
+        # export report_file_path=$REPORT_FILE_PATH
 
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
+        # # Generate MI data JSON
+        # generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
 
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
+        # # Log the JSON to be sent
+        # logInfoMessage "Sonar Scanning JSON to be sent to MI server"
+        # cat sonar.mi
 
         # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
+        # sendMIData sonar.mi ${MI_SERVER_ADDRESS}
 
         # Check the MI send status
-        if [ $? -eq 0 ]; then
-            MI_SEND_STATUS=0
-        else
-            MI_SEND_STATUS=1
-        fi
+        # if [ $? -eq 0 ]; then
+        #     MI_SEND_STATUS=0
+        # else
+        #     MI_SEND_STATUS=1
+        # fi
     fi
 else
     MI_SEND_STATUS=1
 fi
 
 # Conditional logging based on the success or failure of the scan and MI report sending
-if [ $TASK_STATUS -eq 0 ] && [ $MI_SEND_STATUS -eq 0 ]; then
-    logInfoMessage "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
-    generateOutput sonar_scan true "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
-elif [ $TASK_STATUS -eq 0 ] && [ $MI_SEND_STATUS -eq 1 ]; then
-    logWarningMessage "Sonar scan succeeded, but the report was not sent to the MI server."
-    generateOutput sonar_scan false "Sonar scan succeeded, but the report was not sent to the MI server."
-else
-    logWarningMessage "Sonar scan failed. Please check the logs for details."
-    generateOutput sonar_scan false "Sonar scan failed. Please check the logs for details."
-fi
+# if [ $TASK_STATUS -eq 0 ]; then
+#     logInfoMessage "SonarQube Scan Succeeded"
+# else
+#     logWarningMessage "SonarQube Scan failed. Please check the logs for details."
+# fi
 
 # Save the task status
 saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}

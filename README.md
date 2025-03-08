@@ -1,6 +1,14 @@
 # BP-SONAR-SCANNER-STEP
 A BP step to perform SonarQube scanning and optionally send the results to an MI server.
 
+
+## Latest Changes
+- Updated sonar to v7.0.2
+- Fixed duplicate log prints
+- Removed MI data push
+
+To use MI code, checkout to this branch's commit - `6a8b3dd376f7435158122046c5cf28d971075e7a`
+
 ## Setup
 
 ### Clone the Repository
