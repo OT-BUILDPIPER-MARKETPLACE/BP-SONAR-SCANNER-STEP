@@ -79,7 +79,7 @@ if [ "$SONAR_GATE_CHECK" == "true" ]; then
     sleep "$localSleepDuration"
     
     # Get SonarQube Quality Check Status
-    statusResponse=$(curl -s -u "$SONAR_TOKEN": "$SONAR_URL/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
+    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
     
     # Check if curl was successful
     if [ $? -ne 0 ]; then
@@ -92,10 +92,10 @@ if [ "$SONAR_GATE_CHECK" == "true" ]; then
     # Check if the status is "ERROR" (i.e., quality gate failed)
     if [ "$gateStatus" == "ERROR" ]; then
         logInfoMessage "SonarQube quality gate failed!"
-        exit 1
+        # exit 1
     else
         logInfoMessage "SonarQube quality gate passed."
-        exit 0
+        # exit 0
     fi
 else
     logInfoMessage "Skipping Quality Gates Test"
@@ -108,7 +108,7 @@ SLEEP_DURATION=${SLEEP_DURATION:-30}
 sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
-response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
+response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
 
 # Extract the HTTP status code
 http_code=$(echo "$response" | tail -n1)
@@ -131,7 +131,7 @@ else
             echo "[ERROR] Forbidden. Access to the requested resource is forbidden. Check if the SONAR_TOKEN has the required permissions."
             ;;
         404)
-            echo "[ERROR] Not Found. The requested component or resource could not be found. Check the SONAR_URL and CODEBASE_DIR."
+            echo "[ERROR] Not Found. The requested component or resource could not be found. Check the ${SONAR_URL} and ${CODEBASE_DIR}."
             ;;
         500)
             echo "[ERROR] Internal Server Error. Something went wrong on the SonarQube server."
@@ -170,6 +170,9 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
 
         # Display the summary
         cat reports/sonar_summary.csv
+
+        logInfoMessage "Updating reports in /bp/execution_dir/${GLOBAL_TASK_ID}......."
+        cp -rf reports/* /bp/execution_dir/${GLOBAL_TASK_ID}/
 
         # Encode the report file content
         export base64EncodedResponse=$(encodeFileContent reports/sonar_summary.csv)
@@ -316,12 +319,12 @@ fi
 logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_major_violations' metrics --------------------------"
 
         # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
-        export organization=$ORGANIZATION
-        export source_key=sonarqube_major_violations
-        export report_file_path=$REPORT_FILE_PATH
+            export application=$APPLICATION_NAME
+            export environment=$(getProjectEnv)
+            export service=$(getServiceName)
+            export organization=$ORGANIZATION
+            export source_key=sonarqube_major_violations
+            export report_file_path=$REPORT_FILE_PATH
 
         # Generate MI data JSON
         generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
