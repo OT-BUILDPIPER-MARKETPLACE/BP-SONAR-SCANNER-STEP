@@ -45,7 +45,7 @@ if [ -n "$SOURCE_VARIABLE_REPO" ]; then
         fetch_service_details
     fi
 else
-    logErrorMessage "SOURCE_VARIABLE_REPO is not defined. Skipping fetching details from $SOURCE_VARIABLE_REPO."
+    logWarningMessage "SOURCE_VARIABLE_REPO is not defined. Skipping fetching details from $SOURCE_VARIABLE_REPO."
 fi
 
 # Check required environment variables

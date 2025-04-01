@@ -1,38 +1,7 @@
-# Changelog
+# Changelog for registry.buildpiper.in/okts/sonar-scan
 
-
-### Changelog for `registry.buildpiper.in/okts/sonar-scan:dynamic-vars`
-
-- **[NEW]**
-    - Added dynamic variable handling
-    - Added gatecheck handling
-
-### Changelog for `registry.buildpiper.in/okts/sonar-scan:0.5-mi`
-
-- **[NEW]** Added script for Java and Maven version switching based on `JAVA_VERSION` and `MAVEN_VERSION` environment variables.
-- **[IMPROVED]** Docker setup with multiple JDK and Maven versions, making it easy to switch between them dynamically.
-- **[FIXED]** Added checks for unsupported versions, providing clear feedback to users.
-- **[DOCS]** Updated documentation for the new entrypoint script and environment variable configuration examples.
-
-#### **[Added]**
-- Integrated SonarQube scanner functionality to scan code available at specified workspace.
-- Implemented logic to fetch service details based on defined environment variables.
-- Added support for checking required environment variables (`SONAR_TOKEN`, `SONAR_URL`, `APPLICATION_NAME`, `ORGANIZATION`, `MI_SERVER_ADDRESS`) before execution.
-- Introduced logic to handle SonarQube quality gate checks with configurable sleep duration.
-- Enhanced error handling for HTTP status codes during SonarQube metrics fetching.
-- Added metrics fetching logic and exporting to `reports/sonar_summary.csv`.
-
-#### **[Changed]**
-- Updated logging to provide clearer information regarding script execution and potential issues.
-- Streamlined the process for pushing metrics data to the Maturity Dashboard for various SonarQube metrics.
-- Updated `sendMIData` function in `mi-functions.sh`:
-    - Enhanced logging capabilities to capture the HTTP response and status from the `curl` command.
-    - Added error handling to log a detailed message if the data sending fails.
-    - The function now echoes the sending status and response, improving traceability during execution.
-
-    #### **[Details]**
-        The updated `sendMIData` function provides better visibility into the HTTP request process, allowing for easier debugging of data sending to the MI server. It captures both the output and the status of the `curl` command, ensuring that any errors encountered during execution are logged for analysis.
-
-#### **[Fixed]**
-- Corrected handling of default values for `SLEEP_DURATION` and `JAVA_BINARIES` environment variables.
-- Ensured that the script checks for the existence of required directories before creating files.
+| **Version** | **NEW** | **IMPROVED** | **FIXED** | **DOCS** | **ADDED** | **CHANGED** |  
+|------------|--------|------------|--------|--------|--------|--------|  
+| **`registry.buildpiper.in/okts/sonar-scan:dynamic-vars`** | Added dynamic variable handling, Added gatecheck handling | - | - | - | - | - |  
+| **`registry.buildpiper.in/okts/sonar-scan:0.5-mi`** | Added script for Java and Maven version switching based on `JAVA_VERSION` and `MAVEN_VERSION` environment variables | Docker setup with multiple JDK and Maven versions for easy switching | Added checks for unsupported versions, Corrected handling of `SLEEP_DURATION` and `JAVA_BINARIES`, Ensured script checks for required directories before creating files | Updated documentation for entrypoint script and environment variable configuration examples | Integrated SonarQube scanner, Implemented logic to fetch service details, Added support for required environment variables, Introduced quality gate check logic, Enhanced error handling, Added metrics fetching and exporting to `reports/sonar_summary.csv` | Updated logging for clearer execution details, Streamlined metrics data push to Maturity Dashboard, Enhanced logging and error handling in `sendMIData` function |  
+| **`registry.buildpiper.in/okts/sonar-scan:0.6-mi`** | - | - | Fixed inconsistent SonarQube URL handling (with or without `/`), Ensured reports are published to the workspace after every successful scan, Replaced error message with a warning when `SOURCE_VARIABLE_REPO` is not found | - | - | - |
