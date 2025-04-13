@@ -6,7 +6,7 @@ RUN yum install -y bash
 RUN yum install -y jq gettext
 
 ADD BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
-ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
+# ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
 
 ENV APPLICATION_NAME=""
 ENV ORGANIZATION=""

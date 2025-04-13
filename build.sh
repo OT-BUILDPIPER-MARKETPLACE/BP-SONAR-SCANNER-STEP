@@ -49,8 +49,12 @@ logInfoMessage "I've received the following arguments: [$@]"
 # Change to the code directory
 cd $code
 
+# Get the current branch name
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
 # Run the SonarQube scanner
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES $SONAR_ARGS
+sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES -Dsonar.branch.name=$CURRENT_BRANCH $SONAR_ARGS
+
 TASK_STATUS=$?
 
 # Require sleep of 30 sec after publishing the data to fetch back the report
