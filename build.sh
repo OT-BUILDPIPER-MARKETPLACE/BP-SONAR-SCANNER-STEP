@@ -7,14 +7,18 @@ source /opt/buildpiper/shell-functions/log-functions.sh
 source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
+source /opt/buildpiper/shell-functions/getDataFile.sh
+source /opt/buildpiper/shell-functions/print_table.py
 source getDynamicVars.sh
-
 
 # Initialize task status
 TASK_STATUS=0
 WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
 JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
+# Set environment variables for MI data handling for V3 Step
+environment="${PROJECT_ENV_NAME:-$(getProjectEnv)}"
+service="${COMPONENT_NAME:-$(getServiceName)}"
 
 # Log information about the task
 logInfoMessage "I'll scan the code available at [$WORKSPACE] and have mounted at [$CODEBASE_DIR]"
@@ -168,8 +172,14 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         # Log the execution of the summary presentation
         logInfoMessage "Executing command to present the accumulated summary for Sonar Scanning in the Application Code"
 
-        # Display the summary
-        cat reports/sonar_summary.csv
+        # # Display the summary
+        # cat reports/sonar_summary.csv
+        # Display the original CSV 
+        # NOTE: Using python3 print_table.py custom script to print the tabular data.
+        logInfoMessage "Displaying Original Report: reports/sonar_summary.csv"
+        echo "================================================================================"
+        python3 /opt/buildpiper/shell-functions/print_table.py reports/sonar_summary.csv
+        echo "================================================================================"
 
         logInfoMessage "Updating reports in /bp/execution_dir/${GLOBAL_TASK_ID}......."
         cp -rf reports/* /bp/execution_dir/${GLOBAL_TASK_ID}/
@@ -180,40 +190,12 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         # Define potential SOURCE_KEY values to fall back on
         # source_keys=("sonarqube_blocker_violations" "sonarqube_bugs" "sonarqube_security_rating" "sonarqube_code_smells" "sonarqube_major_violations")
 
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonar' metrics --------------------------"
-
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
-        export organization=$ORGANIZATION
-        export source_key=sonar
-        export report_file_path=$REPORT_FILE_PATH
-
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
-
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
-
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonar' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonar' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-
 logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_blocker_violations' metrics --------------------------"
 
         # Set environment variables for MI data
         export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
+        export environment=$environment
+        export service=$service
         export organization=$ORGANIZATION
         export source_key=sonarqube_blocker_violations
         export report_file_path=$REPORT_FILE_PATH
@@ -239,8 +221,8 @@ logInfoMessage "-------------------------- Initiating data push to the Maturity 
 
         # Set environment variables for MI data
         export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
+        export environment=$environment
+        export service=$service
         export organization=$ORGANIZATION
         export source_key=sonarqube_bugs
         export report_file_path=$REPORT_FILE_PATH
@@ -266,8 +248,8 @@ logInfoMessage "-------------------------- Initiating data push to the Maturity 
 
         # Set environment variables for MI data
         export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
+        export environment=$environment
+        export service=$service
         export organization=$ORGANIZATION
         export source_key=sonarqube_security_rating
         export report_file_path=$REPORT_FILE_PATH
@@ -293,8 +275,8 @@ logInfoMessage "-------------------------- Initiating data push to the Maturity 
 
         # Set environment variables for MI data
         export application=$APPLICATION_NAME
-        export environment=$(getProjectEnv)
-        export service=$(getServiceName)
+        export environment=$environment
+        export service=$service
         export organization=$ORGANIZATION
         export source_key=sonarqube_code_smells
         export report_file_path=$REPORT_FILE_PATH
@@ -320,8 +302,8 @@ logInfoMessage "-------------------------- Initiating data push to the Maturity 
 
         # Set environment variables for MI data
             export application=$APPLICATION_NAME
-            export environment=$(getProjectEnv)
-            export service=$(getServiceName)
+            export environment=$environment
+            export service=$service
             export organization=$ORGANIZATION
             export source_key=sonarqube_major_violations
             export report_file_path=$REPORT_FILE_PATH

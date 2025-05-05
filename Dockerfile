@@ -18,11 +18,12 @@ RUN apk add --no-cache --upgrade bash \
     python3-dev \
     make
 
-# Create a Python virtual environment
+# Create a virtual environment
 RUN python3 -m venv /root/venv
 
-# Activate the virtual environment and install the cryptography library
-RUN . /root/venv/bin/activate && pip install --no-cache-dir cryptography
+# Upgrade pip and install packages using the venv's pip directly
+RUN /root/venv/bin/pip install --no-cache-dir --upgrade pip && \
+    /root/venv/bin/pip install --no-cache-dir tabulate cryptography
 
 ADD BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
 ADD BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
