@@ -8,7 +8,6 @@ source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
 source /opt/buildpiper/shell-functions/getDataFile.sh
-source /opt/buildpiper/shell-functions/print_table.py
 source getDynamicVars.sh
 
 # Initialize task status
@@ -49,7 +48,9 @@ if [ -n "$SOURCE_VARIABLE_REPO" ]; then
         fetch_service_details
     fi
 else
-    logWarningMessage "SOURCE_VARIABLE_REPO is not defined. Skipping fetching details from $SOURCE_VARIABLE_REPO."
+    echo "-------------------------------------------SOURCE_VARIABLE_REPO-------------------------------------------"
+    logInfoMessage "SOURCE_VARIABLE_REPO is not set. Skipping fetch operation as the source repository is undefined."
+    echo "-------------------------------------------SOURCE_VARIABLE_REPO-------------------------------------------"
 fi
 
 # Check required environment variables
@@ -66,6 +67,8 @@ if [ ${#missing_vars[@]} -ne 0 ]; then
     echo "[ERROR] The following required environment variables are missing: ${missing_vars[*]}"
     exit 1
 fi
+
+logInfoMessage "Sonar Url: $SONAR_URL"
 
 # Run the SonarQube scanner
 sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES $SONAR_ARGS
