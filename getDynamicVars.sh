@@ -81,6 +81,7 @@ function fetch_service_details() {
     export SONAR_URL=$(echo "$service_data" | jq -r '.SONAR_URL')    
     export JAVA_BINARIES=$(echo "$service_data" | jq -r '.JAVA_BINARIES')
     export SONAR_GATE_CHECK=$(echo "$service_data" | jq -r '.SONAR_GATE_CHECK')
+    export SONAR_ARGS=$(echo "$service_data" | jq -r '.SONAR_ARGS')
 
     # Remove the cloned repository
     echo "Removing the cloned repository..."

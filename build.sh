@@ -73,7 +73,8 @@ logInfoMessage "Sonar Url: $SONAR_URL"
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Run the SonarQube scanner
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES -Dsonar.branch.name=$CURRENT_BRANCH $SONAR_ARGS
+logInfoMessage "Running SonarQube scanner with the following parameters: sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
+sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS
 TASK_STATUS=$?
 
 # Set default value for SONAR_GATE_CHECK if not already set
@@ -81,36 +82,6 @@ SONAR_GATE_CHECK=${SONAR_GATE_CHECK:-false}
 
 # Set local sleep duration specifically for this part of the script
 localSleepDuration=${SLEEP_DURATION:-300}
-
-# Require sleep of 300 sec after publishing the data to fetch back the report
-if [ "$SONAR_GATE_CHECK" == "true" ]; then
-    logInfoMessage "Waiting for Quality Gate Check for "$localSleepDuration" Seconds"
-    sleep "$localSleepDuration"
-    
-    # Get SonarQube Quality Check Status
-    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
-    
-    # Check if curl was successful
-    if [ $? -ne 0 ]; then
-        logInfoMessage "Failed to fetch SonarQube quality gate status!"
-        exit 1
-    fi
-
-    gateStatus=$(echo "$statusResponse" | jq -r .projectStatus.status)
-
-    # Check if the status is "ERROR" (i.e., quality gate failed)
-    if [ "$gateStatus" == "ERROR" ]; then
-        logInfoMessage "SonarQube quality gate failed!"
-        # exit 1
-    else
-        logInfoMessage "SonarQube quality gate passed."
-        # exit 0
-    fi
-else
-    logInfoMessage "Skipping Quality Gates Test"
-fi
-
-TASK_STATUS=$?
 
 # Require sleep of 30 sec after publishing the data to fetch back the report
 SLEEP_DURATION=${SLEEP_DURATION:-30}
@@ -352,6 +323,36 @@ else
     logWarningMessage "Sonar scan failed. Please check the logs for details."
     generateOutput sonar_scan false "Sonar scan failed. Please check the logs for details."
 fi
+
+# Require sleep of 300 sec after publishing the data to fetch back the report
+if [ "$SONAR_GATE_CHECK" == "true" ]; then
+    logInfoMessage "Waiting for Quality Gate Check for "$localSleepDuration" Seconds"
+    sleep "$localSleepDuration"
+    
+    # Get SonarQube Quality Check Status
+    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
+    
+    # Check if curl was successful
+    if [ $? -ne 0 ]; then
+        logInfoMessage "Failed to fetch SonarQube quality gate status!"
+        exit 1
+    fi
+
+    gateStatus=$(echo "$statusResponse" | jq -r .projectStatus.status)
+
+    # Check if the status is "ERROR" (i.e., quality gate failed)
+    if [ "$gateStatus" == "ERROR" ]; then
+        logInfoMessage "SonarQube quality gate failed!"
+        exit 1
+    else
+        logInfoMessage "SonarQube quality gate passed."
+        # exit 0
+    fi
+else
+    logInfoMessage "Skipping Quality Gates Test"
+fi
+
+TASK_STATUS=$?
 
 # Save the task status
 saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}
