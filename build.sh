@@ -53,7 +53,7 @@ cd $code
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Run the SonarQube scanner
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.java.binaries=$JAVA_BINARIES -Dsonar.branch.name=$CURRENT_BRANCH $SONAR_ARGS
+sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR -Dsonar.branch.name=$CURRENT_BRANCH $SONAR_ARGS
 
 TASK_STATUS=$?
 
