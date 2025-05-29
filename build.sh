@@ -69,7 +69,7 @@ if [ ${#missing_vars[@]} -ne 0 ]; then
     exit 1
 fi
 
-"Sonar Url: $SONAR_URL"
+logInfoMessage "Sonar Url: $SONAR_URL"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
