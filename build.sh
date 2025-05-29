@@ -54,7 +54,8 @@ else
 fi
 
 # Check required environment variables
-required_vars=("SONAR_TOKEN" "SONAR_URL" "APPLICATION_NAME" "ORGANIZATION" "MI_SERVER_ADDRESS")
+    # required_vars=("SONAR_TOKEN" "SONAR_URL" "APPLICATION_NAME" "ORGANIZATION" "MI_SERVER_ADDRESS")
+required_vars=("SONAR_TOKEN" "SONAR_URL")
 missing_vars=()
 
 for var in "${required_vars[@]}"; do
@@ -68,13 +69,64 @@ if [ ${#missing_vars[@]} -ne 0 ]; then
     exit 1
 fi
 
-logInfoMessage "Sonar Url: $SONAR_URL"
+"Sonar Url: $SONAR_URL"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+prepareSonarScanArgs() {
+  # Allow user to export LANGUAGE manually
+  if [ -z "$LANGUAGE" ]; then
+    if find . -name "*.java" | grep -q .; then
+      LANGUAGE="java"
+    elif find . -name "*.py" | grep -q .; then
+      LANGUAGE="python"
+    elif find . -name "*.go" | grep -q .; then
+      LANGUAGE="go"
+    elif find . -name "*.js" | grep -q .; then
+      LANGUAGE="javascript"
+    elif find . -name "*.php" | grep -q .; then
+      LANGUAGE="php"
+    else
+      LANGUAGE="unknown"
+      logWarningMessage "Unable to detect project language. Defaulting to basic source scan."
+    fi
+  else
+    logInfoMessage "Language already provided: $LANGUAGE"
+  fi
+
+  # Add language-specific configurations
+  case "$LANGUAGE" in
+    java)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
+      ;;
+    python)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.python.version=${PYTHON_VERSION:-3}"
+      ;;
+    go)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.go.coverage.reportPaths=coverage.out"
+      ;;
+    javascript)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
+      ;;
+    php)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.language=php"
+      if [ -f "coverage/clover.xml" ]; then
+        SONAR_ARGS="$SONAR_ARGS -Dsonar.php.coverage.reportPaths=coverage/clover.xml"
+      fi
+      ;;
+    *)
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=."
+      logWarningMessage "No specific SonarQube configuration for language '$LANGUAGE'. Using basic source scan."
+      ;;
+  esac
+}
+
+prepareSonarScanArgs
+
 # Run the SonarQube scanner
-logInfoMessage "Running SonarQube scanner with the following parameters: sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
+logInfoMessage "Executing Sonar Scan for $LANGUAGE: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
 sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS
+
 TASK_STATUS=$?
 
 # Set default value for SONAR_GATE_CHECK if not already set
@@ -148,10 +200,7 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         # Log the execution of the summary presentation
         logInfoMessage "Executing command to present the accumulated summary for Sonar Scanning in the Application Code"
 
-        # # Display the summary
-        # cat reports/sonar_summary.csv
         # Display the original CSV 
-        # NOTE: Using python3 print_table.py custom script to print the tabular data.
         logInfoMessage "Displaying Original Report: reports/sonar_summary.csv"
         echo "================================================================================"
         python3 /opt/buildpiper/shell-functions/print_table.py reports/sonar_summary.csv
@@ -163,149 +212,39 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         # Encode the report file content
         export base64EncodedResponse=$(encodeFileContent reports/sonar_summary.csv)
 
-        # Define potential SOURCE_KEY values to fall back on
-        # source_keys=("sonarqube_blocker_violations" "sonarqube_bugs" "sonarqube_security_rating" "sonarqube_code_smells" "sonarqube_major_violations")
+        # Only send MI data if MI_SERVER_ADDRESS is provided
+        if [ -n "$MI_SERVER_ADDRESS" ]; then
 
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_blocker_violations' metrics --------------------------"
+            # Define and send all MI data as before
+            for source_key in sonarqube_blocker_violations sonarqube_bugs sonarqube_security_rating sonarqube_code_smells sonarqube_major_violations; do
+                logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for '$source_key' metrics --------------------------"
+                export application=$APPLICATION_NAME
+                export environment=$environment
+                export service=$service
+                export organization=$ORGANIZATION
+                export source_key=$source_key
+                export report_file_path=$REPORT_FILE_PATH
 
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$environment
-        export service=$service
-        export organization=$ORGANIZATION
-        export source_key=sonarqube_blocker_violations
-        export report_file_path=$REPORT_FILE_PATH
+                generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
 
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
+                logInfoMessage "Sonar Scanning JSON to be sent to MI server"
+                cat sonar.mi
 
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
+                if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
+                    logInfoMessage "-------------------------- Successfully completed the data push for '$source_key' metrics --------------------------"
+                else
+                    logErrorMessage "-------------------------- Failed to push data for '$source_key' metrics. Please check the MI server address or the generated JSON file. --------------------------"
+                    MI_SEND_STATUS=1
+                fi
+            done
 
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonarqube_blocker_violations' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonarqube_blocker_violations' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_bugs' metrics --------------------------"
-
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$environment
-        export service=$service
-        export organization=$ORGANIZATION
-        export source_key=sonarqube_bugs
-        export report_file_path=$REPORT_FILE_PATH
-
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
-
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
-
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonarqube_bugs' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonarqube_bugs' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_security_rating' metrics --------------------------"
-
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$environment
-        export service=$service
-        export organization=$ORGANIZATION
-        export source_key=sonarqube_security_rating
-        export report_file_path=$REPORT_FILE_PATH
-
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
-
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
-
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonarqube_security_rating' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonarqube_security_rating' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_code_smells' metrics --------------------------"
-
-        # Set environment variables for MI data
-        export application=$APPLICATION_NAME
-        export environment=$environment
-        export service=$service
-        export organization=$ORGANIZATION
-        export source_key=sonarqube_code_smells
-        export report_file_path=$REPORT_FILE_PATH
-
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
-
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
-
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonarqube_code_smells' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonarqube_code_smells' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-logInfoMessage "-------------------------- Initiating data push to the Maturity Dashboard for 'sonarqube_major_violations' metrics --------------------------"
-
-        # Set environment variables for MI data
-            export application=$APPLICATION_NAME
-            export environment=$environment
-            export service=$service
-            export organization=$ORGANIZATION
-            export source_key=sonarqube_major_violations
-            export report_file_path=$REPORT_FILE_PATH
-
-        # Generate MI data JSON
-        generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
-
-        # Log the JSON to be sent
-        logInfoMessage "Sonar Scanning JSON to be sent to MI server"
-        cat sonar.mi
-
-        # Send the MI data
-        sendMIData sonar.mi ${MI_SERVER_ADDRESS}
-
-# Send the MI data and check the result
-if sendMIData sonar.mi ${MI_SERVER_ADDRESS}; then
-    logInfoMessage "-------------------------- Successfully completed the data push for 'sonarqube_major_violations' metrics --------------------------"
-else
-    logErrorMessage "-------------------------- Failed to push data for 'sonarqube_major_violations' metrics. Please check the MI server address or the generated JSON file. --------------------------"
-fi
-
-        # Check the MI send status
-        if [ $? -eq 0 ]; then
-            MI_SEND_STATUS=0
+            # If all sends succeeded, set MI_SEND_STATUS=0
+            if [ -z "${MI_SEND_STATUS}" ]; then
+                MI_SEND_STATUS=0
+            fi
         else
-            MI_SEND_STATUS=1
+            logInfoMessage "MI_SERVER_ADDRESS not provided, skipping MI data push."
+            MI_SEND_STATUS=0
         fi
     fi
 else
@@ -313,12 +252,17 @@ else
 fi
 
 # Conditional logging based on the success or failure of the scan and MI report sending
-if [ $TASK_STATUS -eq 0 ] && [ $MI_SEND_STATUS -eq 0 ]; then
-    logInfoMessage "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
-    generateOutput sonar_scan true "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
-elif [ $TASK_STATUS -eq 0 ] && [ $MI_SEND_STATUS -eq 1 ]; then
-    logWarningMessage "Sonar scan succeeded, but the report was not sent to the MI server."
-    generateOutput sonar_scan false "Sonar scan succeeded, but the report was not sent to the MI server."
+if [ $TASK_STATUS -eq 0 ]; then
+    if [ -z "$MI_SERVER_ADDRESS" ]; then
+        logInfoMessage "Sonar scan succeeded. MI server not configured, skipping report send."
+        generateOutput sonar_scan true "Sonar scan succeeded. MI server not configured, skipping report send."
+    elif [ $MI_SEND_STATUS -eq 0 ]; then
+        logInfoMessage "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
+        generateOutput sonar_scan true "Congratulations, Sonar scan succeeded and the report was successfully sent to the MI server!!!"
+    else
+        logWarningMessage "Sonar scan succeeded, but the report was not sent to the MI server."
+        generateOutput sonar_scan false "Sonar scan succeeded, but the report was not sent to the MI server."
+    fi
 else
     logWarningMessage "Sonar scan failed. Please check the logs for details."
     generateOutput sonar_scan false "Sonar scan failed. Please check the logs for details."
