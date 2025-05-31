@@ -73,6 +73,24 @@ logInfoMessage "Sonar Url: $SONAR_URL"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+# Option to scan the whole codebase or just the latest code
+SONAR_SCAN_SCOPE=${SONAR_SCAN_SCOPE:-all}  # all (default) or latest
+
+if [ "$SONAR_SCAN_SCOPE" = "latest" ]; then
+    # Get list of changed files in the latest commit (excluding deleted files)
+    CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | xargs)
+    if [ -z "$CHANGED_FILES" ]; then
+        logWarningMessage "No changed files found in the latest commit. Defaulting to scanning the whole codebase."
+        SONAR_SOURCES="."
+    else
+        logInfoMessage "Scanning only the latest changed files: $CHANGED_FILES"
+        SONAR_SOURCES=$(echo $CHANGED_FILES | tr ' ' ',')
+    fi
+else
+    logInfoMessage "Scanning the whole codebase."
+    SONAR_SOURCES="."
+fi
+
 prepareSonarScanArgs() {
   # Allow user to export LANGUAGE manually
   if [ -z "$LANGUAGE" ]; then
@@ -97,25 +115,25 @@ prepareSonarScanArgs() {
   # Add language-specific configurations
   case "$LANGUAGE" in
     java)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
       ;;
     python)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.python.version=${PYTHON_VERSION:-3}"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.python.version=${PYTHON_VERSION:-3}"
       ;;
     go)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.go.coverage.reportPaths=coverage.out"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.go.coverage.reportPaths=coverage.out"
       ;;
     javascript)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
       ;;
     php)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.language=php"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.language=php"
       if [ -f "coverage/clover.xml" ]; then
         SONAR_ARGS="$SONAR_ARGS -Dsonar.php.coverage.reportPaths=coverage/clover.xml"
       fi
       ;;
     *)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=."
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES}"
       logWarningMessage "No specific SonarQube configuration for language '$LANGUAGE'. Using basic source scan."
       ;;
   esac
