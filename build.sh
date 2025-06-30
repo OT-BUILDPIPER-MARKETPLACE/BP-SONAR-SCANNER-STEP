@@ -10,6 +10,8 @@ source /opt/buildpiper/shell-functions/aws-functions.sh
 source /opt/buildpiper/shell-functions/getDataFile.sh
 source getDynamicVars.sh
 
+git config --global --add safe.directory $WORKSPACE
+
 # Initialize task status
 TASK_STATUS=0
 WORKSPACE="/bp/workspace"
