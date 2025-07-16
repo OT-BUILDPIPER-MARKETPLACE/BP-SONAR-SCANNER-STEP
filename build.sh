@@ -14,7 +14,8 @@ source getDynamicVars.sh
 TASK_STATUS=0
 WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
-JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
+sonar-scanner --version
+# JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
 # Set environment variables for MI data handling for V3 Step
 environment="${PROJECT_ENV_NAME:-$(getProjectEnv)}"
 service="${COMPONENT_NAME:-$(getServiceName)}"
@@ -36,13 +37,13 @@ code="$WORKSPACE/$CODEBASE_DIR"
 logInfoMessage "I've received the following arguments: [$@]"
 
 # Change to the code directory
-cd $code
+cd "$code"
 
 # Main logic to check conditions and call fetch_service_details
 if [ -n "$SOURCE_VARIABLE_REPO" ]; then
     # Check if TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, and DNS_URL are provided
     if [ -n "$SONAR_TOKEN" ] && [ -n "$SONAR_URL" ]; then
-        echo "SONAR_TOKEN and SONAR_URLare provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
+        echo "SONAR_TOKEN and SONAR_URL are provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
     else
         echo "Fetching details from $SOURCE_VARIABLE_REPO as SONAR_TOKEN and SONAR_URL are not provided."
         fetch_service_details
@@ -143,7 +144,7 @@ prepareSonarScanArgs
 
 # Run the SonarQube scanner
 logInfoMessage "Executing Sonar Scan for $LANGUAGE: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS
+sonar-scanner -Dsonar.token="$SONAR_TOKEN" -Dsonar.host.url="$SONAR_URL" -Dsonar.projectKey="$CODEBASE_DIR" $SONAR_ARGS
 
 TASK_STATUS=$?
 
@@ -158,7 +159,7 @@ SLEEP_DURATION=${SLEEP_DURATION:-30}
 sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
-response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
+response=$(curl -s -w "%{http_code}" -u "$SONAR_TOKEN": -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
 
 # Extract the HTTP status code
 http_code=$(echo "$response" | tail -n1)
