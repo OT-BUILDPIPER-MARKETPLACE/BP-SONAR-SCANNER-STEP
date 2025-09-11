@@ -30,20 +30,25 @@ RUN curl -Lo sonar-scanner.zip https://binaries.sonarsource.com/Distribution/son
 # Add sonar-scanner to PATH
 ENV PATH="/opt/sonar-scanner/bin:$PATH"
 
+# Create non-root user with fixed UID/GID = 65522
+RUN groupadd -g 65522 buildpiper && \
+    useradd -m -u 65522 -g 65522 -s /bin/bash buildpiper
+
 # Set working directory
 WORKDIR /home/buildpiper
 
 # Copy your custom scripts
-COPY build.sh getDynamicVars.sh ./
-COPY BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
-COPY BP-BASE-SHELL-STEPS/data /opt/buildpiper/data/
-RUN  mkdir -p /bp/execution_dir && chown -R 1001:1001 /bp
+COPY --chown=65522:65522 build.sh getDynamicVars.sh ./
+COPY --chown=65522:65522 BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
+COPY --chown=65522:65522 BP-BASE-SHELL-STEPS/data /opt/buildpiper/data/
+
+# Create execution directory with correct ownership
+RUN mkdir -p /bp/execution_dir && chown -R 65522:65522 /bp
 
 # Make scripts executable
 RUN chmod +x build.sh getDynamicVars.sh
 
-RUN useradd -ms /bin/bash buildpiper && chown -R buildpiper:buildpiper /home/buildpiper
-
+# Switch to non-root user
 USER buildpiper
 
 ENTRYPOINT ["./build.sh"]
