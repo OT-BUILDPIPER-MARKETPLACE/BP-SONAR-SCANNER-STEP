@@ -116,7 +116,7 @@ prepareSonarScanArgs() {
   # Add language-specific configurations
   case "$LANGUAGE" in
     java)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.java.binaries=${JAVA_BINARIES}"
       ;;
     python)
       SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.python.version=${PYTHON_VERSION:-3}"
