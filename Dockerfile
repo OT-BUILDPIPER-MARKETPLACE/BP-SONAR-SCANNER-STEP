@@ -30,6 +30,13 @@ RUN groupadd -g 65522 buildpiper && \
     useradd -u 65522 -g buildpiper -d /home/buildpiper -s /bin/bash -m buildpiper && \
     chown -R buildpiper:buildpiper /home/buildpiper
 
+RUN mkdir -p /home/buildpiper/reports \
+             /bp/data \
+             /bp/execution_dir \
+             /opt/buildpiper/shell-functions \
+             /bp/workspace && \
+    chown -R buildpiper:buildpiper /home/buildpiper /bp /opt
+
 WORKDIR /home/buildpiper
 
 
