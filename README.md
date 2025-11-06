@@ -64,6 +64,7 @@ docker run -it --rm \
   - **Suggestion**: If you know where your Java classes are located, set the `JAVA_BINARIES` environment variable to that directory path.
 
   Example:
+  
   ```bash
   export JAVA_BINARIES=target/classes
   ```
