@@ -14,7 +14,8 @@ source getDynamicVars.sh
 TASK_STATUS=0
 WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
-JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
+sonar-scanner --version
+# JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
 # Set environment variables for MI data handling for V3 Step
 environment="${PROJECT_ENV_NAME:-$(getProjectEnv)}"
 service="${COMPONENT_NAME:-$(getServiceName)}"
@@ -36,13 +37,13 @@ code="$WORKSPACE/$CODEBASE_DIR"
 logInfoMessage "I've received the following arguments: [$@]"
 
 # Change to the code directory
-cd $code
+cd "$code"
 
 # Main logic to check conditions and call fetch_service_details
 if [ -n "$SOURCE_VARIABLE_REPO" ]; then
     # Check if TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, and DNS_URL are provided
     if [ -n "$SONAR_TOKEN" ] && [ -n "$SONAR_URL" ]; then
-        echo "SONAR_TOKEN and SONAR_URLare provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
+        echo "SONAR_TOKEN and SONAR_URL are provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
     else
         echo "Fetching details from $SOURCE_VARIABLE_REPO as SONAR_TOKEN and SONAR_URL are not provided."
         fetch_service_details
@@ -73,6 +74,24 @@ logInfoMessage "Sonar Url: $SONAR_URL"
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
+# Option to scan the whole codebase or just the latest code
+SONAR_SCAN_SCOPE=${SONAR_SCAN_SCOPE:-all}  # all (default) or latest
+
+if [ "$SONAR_SCAN_SCOPE" = "latest" ]; then
+    # Get list of changed files in the latest commit (excluding deleted files)
+    CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r HEAD | xargs)
+    if [ -z "$CHANGED_FILES" ]; then
+        logWarningMessage "No changed files found in the latest commit. Defaulting to scanning the whole codebase."
+        SONAR_SOURCES="."
+    else
+        logInfoMessage "Scanning only the latest changed files: $CHANGED_FILES"
+        SONAR_SOURCES=$(echo $CHANGED_FILES | tr ' ' ',')
+    fi
+else
+    logInfoMessage "Scanning the whole codebase."
+    SONAR_SOURCES="."
+fi
+
 prepareSonarScanArgs() {
   # Allow user to export LANGUAGE manually
   if [ -z "$LANGUAGE" ]; then
@@ -97,25 +116,25 @@ prepareSonarScanArgs() {
   # Add language-specific configurations
   case "$LANGUAGE" in
     java)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.java.binaries=${JAVA_BINARIES:-target/classes}"
       ;;
     python)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.python.version=${PYTHON_VERSION:-3}"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.python.version=${PYTHON_VERSION:-3}"
       ;;
     go)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.go.coverage.reportPaths=coverage.out"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.go.coverage.reportPaths=coverage.out"
       ;;
     javascript)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
       ;;
     php)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=. -Dsonar.language=php"
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.language=php"
       if [ -f "coverage/clover.xml" ]; then
         SONAR_ARGS="$SONAR_ARGS -Dsonar.php.coverage.reportPaths=coverage/clover.xml"
       fi
       ;;
     *)
-      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=."
+      SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES}"
       logWarningMessage "No specific SonarQube configuration for language '$LANGUAGE'. Using basic source scan."
       ;;
   esac
@@ -125,7 +144,7 @@ prepareSonarScanArgs
 
 # Run the SonarQube scanner
 logInfoMessage "Executing Sonar Scan for $LANGUAGE: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS
+sonar-scanner -Dsonar.token="$SONAR_TOKEN" -Dsonar.host.url="$SONAR_URL" -Dsonar.projectKey="$CODEBASE_DIR" $SONAR_ARGS
 
 TASK_STATUS=$?
 
@@ -140,7 +159,7 @@ SLEEP_DURATION=${SLEEP_DURATION:-30}
 sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
-response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
+response=$(curl -s -w "%{http_code}" -u "$SONAR_TOKEN": -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
 
 # Extract the HTTP status code
 http_code=$(echo "$response" | tail -n1)
