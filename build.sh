@@ -10,6 +10,10 @@ source /opt/buildpiper/shell-functions/aws-functions.sh
 source /opt/buildpiper/shell-functions/getDataFile.sh
 source getDynamicVars.sh
 
+if [ "$DEBUG" = true ]; then
+  set -x
+fi
+
 # Initialize task status
 TASK_STATUS=0
 WORKSPACE="/bp/workspace"
