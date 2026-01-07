@@ -1,6 +1,14 @@
 # BP-SONAR-SCANNER-STEP
 A BP step to perform SonarQube scanning and optionally send the results to an MI server.
 
+
+## Latest Changes
+- Updated sonar to v7.0.2
+- Fixed duplicate log prints
+- Removed MI data push
+
+To use MI code, checkout to this branch's commit - `6a8b3dd376f7435158122046c5cf28d971075e7a`
+
 ## Setup
 
 ### Clone the Repository
@@ -16,9 +24,6 @@ Ensure you are using the correct branch for the base shell steps:
 git submodule init
 git submodule update
 docker build -t registry.buildpiper.in/okts/sonar-scan:tag .
-
-# Image with dynamic vars handling
-docker build -t registry.buildpiper.in/okts/sonar-scan:0.5-mi .
 ```
 **Note:** Use the `v0.7` branch for `BP-BASE-SHELL-STEPS`.
 
@@ -64,7 +69,6 @@ docker run -it --rm \
   - **Suggestion**: If you know where your Java classes are located, set the `JAVA_BINARIES` environment variable to that directory path.
 
   Example:
-  
   ```bash
   export JAVA_BINARIES=target/classes
   ```
