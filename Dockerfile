@@ -68,6 +68,8 @@ RUN python3 -m venv /home/buildpiper/venv && \
     /home/buildpiper/venv/bin/pip install --no-cache-dir --upgrade pip && \
     /home/buildpiper/venv/bin/pip install --no-cache-dir tabulate cryptography
 
+ENV PATH="/home/buildpiper/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
 # Copy scripts
 COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
 COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
