@@ -306,6 +306,7 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
         ### SEND MI DATA IF CONFIGURED
         ###############################################
         if [ -n "$MI_SERVER_ADDRESS" ]; then
+            MI_SERVER_ADDRESS="${MI_SERVER_ADDRESS%/}" 
             for source_key in sonarqube_blocker_violations sonarqube_bugs sonarqube_security_rating sonarqube_code_smells sonarqube_major_violations; do
                 logInfoMessage "Pushing '$source_key' metrics to MI server..."
                 
@@ -452,8 +453,15 @@ if [ $TASK_STATUS -eq 0 ]; then
         generateOutput ${ACTIVITY_SUB_TASK_CODE} false "Sonar scan succeeded, but MI send failed."
     fi
 else
-    logWarningMessage "Sonar scan failed. Please check the logs for details."
-    generateOutput ${ACTIVITY_SUB_TASK_CODE} false "Sonar scan failed."
+    logWarningMessage "Trivy scan failed, but the step is configured as NON-BLOCKING (warning mode).
+
+  If you want the pipeline to FAIL on leaks:
+  - Go to job template settings
+  - Set VALIDATION_FAILURE_ACTION = FAILURE
+
+  Current setting allows pipeline to continue."
+    add_event "validation mode" "Successful" "Non-blocking validation" "Scan failed but pipeline continued because VALIDATION_FAILURE_ACTION is not FAILURE"
+    generateOutput ${ACTIVITY_SUB_TASK_CODE} false "$FINAL_MESSAGE"  
 fi
 
 saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}
