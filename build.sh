@@ -10,13 +10,13 @@ source /opt/buildpiper/shell-functions/aws-functions.sh
 source /opt/buildpiper/shell-functions/getDataFile.sh
 source getDynamicVars.sh
 
-git config --global --add safe.directory $WORKSPACE
-
 # Initialize task status
 TASK_STATUS=0
+MI_SEND_STATUS=1
 WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
-JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
+sonar-scanner --version
+# JAVA_BINARIES=${JAVA_BINARIES:-.}  # Default to '.' if not set
 # Set environment variables for MI data handling for V3 Step
 environment="${PROJECT_ENV_NAME:-$(getProjectEnv)}"
 service="${COMPONENT_NAME:-$(getServiceName)}"
@@ -38,13 +38,13 @@ code="$WORKSPACE/$CODEBASE_DIR"
 logInfoMessage "I've received the following arguments: [$@]"
 
 # Change to the code directory
-cd $code
+cd "$code"
 
 # Main logic to check conditions and call fetch_service_details
 if [ -n "$SOURCE_VARIABLE_REPO" ]; then
     # Check if TELEGRAM_TOKEN, TELEGRAM_CHAT_ID, and DNS_URL are provided
     if [ -n "$SONAR_TOKEN" ] && [ -n "$SONAR_URL" ]; then
-        echo "SONAR_TOKEN and SONAR_URLare provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
+        echo "SONAR_TOKEN and SONAR_URL are provided. Skipping fetching details from SOURCE_VARIABLE_REPO."
     else
         echo "Fetching details from $SOURCE_VARIABLE_REPO as SONAR_TOKEN and SONAR_URL are not provided."
         fetch_service_details
@@ -143,24 +143,42 @@ prepareSonarScanArgs() {
 
 prepareSonarScanArgs
 
+# Make the scanner wait for the server-side Quality Gate result. When the gate
+# fails, sonar-scanner returns a non-zero exit code. Metrics are still fetched
+# and sent to MI below because this script does not exit immediately.
+SONAR_GATE_CHECK=${SONAR_GATE_CHECK:-false}
+SONAR_QUALITY_GATE_TIMEOUT=${SONAR_QUALITY_GATE_TIMEOUT:-300}
+SONAR_WEB_SERVICE_TIMEOUT=${SONAR_WEB_SERVICE_TIMEOUT:-300}
+if [ "$SONAR_GATE_CHECK" = "true" ]; then
+    case "$SONAR_QUALITY_GATE_TIMEOUT:$SONAR_WEB_SERVICE_TIMEOUT" in
+        *[!0-9:]*|:*|*:|0:*|*:0)
+            logErrorMessage "SONAR_QUALITY_GATE_TIMEOUT and SONAR_WEB_SERVICE_TIMEOUT must be positive integers."
+            exit 1
+            ;;
+    esac
+
+    # qualitygate.timeout controls the total polling period. ws.timeout controls
+    # each HTTP request made while polling /api/ce/task; without it, a slow
+    # SonarQube server can fail with SocketTimeoutException before the overall
+    # Quality Gate timeout is reached.
+    SONAR_ARGS="$SONAR_ARGS -Dsonar.qualitygate.wait=true -Dsonar.qualitygate.timeout=$SONAR_QUALITY_GATE_TIMEOUT -Dsonar.ws.timeout=$SONAR_WEB_SERVICE_TIMEOUT"
+    logInfoMessage "Quality Gate enforcement enabled (gate timeout: ${SONAR_QUALITY_GATE_TIMEOUT}s, web-service timeout: ${SONAR_WEB_SERVICE_TIMEOUT}s)."
+else
+    logInfoMessage "Quality Gate enforcement disabled."
+fi
+
 # Run the SonarQube scanner
 logInfoMessage "Executing Sonar Scan for $LANGUAGE: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS"
-sonar-scanner -Dsonar.token=$SONAR_TOKEN -Dsonar.host.url=$SONAR_URL -Dsonar.projectKey=$CODEBASE_DIR $SONAR_ARGS
+sonar-scanner -Dsonar.token="$SONAR_TOKEN" -Dsonar.host.url="$SONAR_URL" -Dsonar.projectKey="$CODEBASE_DIR" $SONAR_ARGS
 
 TASK_STATUS=$?
-
-# Set default value for SONAR_GATE_CHECK if not already set
-SONAR_GATE_CHECK=${SONAR_GATE_CHECK:-false}
-
-# Set local sleep duration specifically for this part of the script
-localSleepDuration=${SLEEP_DURATION:-300}
 
 # Require sleep of 30 sec after publishing the data to fetch back the report
 SLEEP_DURATION=${SLEEP_DURATION:-30}
 sleep $SLEEP_DURATION    
 
 # Fetch SonarQube results
-response=$(curl -s -w "%{http_code}" -u $SONAR_TOKEN: -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
+response=$(curl -s -w "%{http_code}" -u "$SONAR_TOKEN": -X GET "${SONAR_URL}/api/measures/component?component=$CODEBASE_DIR&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" -o response.json)
 
 # Extract the HTTP status code
 http_code=$(echo "$response" | tail -n1)
@@ -170,9 +188,15 @@ METRICS_FETCH_SUCCESS=1
 
 # Check if the request was successful (HTTP 200)
 if [ "$http_code" -eq 200 ]; then
-    # If successful, parse the JSON
-    json=$(jq '.' response.json)
-    logInfoMessage "Successfully fetched SonarQube metrics."
+    # HTTP 200 only confirms the request completed. Validate the response body
+    # before treating it as a usable metrics response.
+    if jq -e '.component.measures | type == "array" and length > 0' response.json >/dev/null 2>&1; then
+        logInfoMessage "Successfully fetched SonarQube metrics."
+    else
+        logErrorMessage "SonarQube returned HTTP 200, but component.measures is missing or empty."
+        logErrorMessage "SonarQube metrics response: $(jq -c '.' response.json 2>/dev/null || tr '\n' ' ' < response.json)"
+        METRICS_FETCH_SUCCESS=0
+    fi
 else
     # If not successful, handle different types of errors
     case "$http_code" in
@@ -204,16 +228,44 @@ fi
 # Ensure the reports directory exists
 mkdir -p reports
 
-# Process and save the SonarQube summary if metrics fetching was successful
-if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
-    echo $json | jq -r '.component.measures | map({metric: .metric, value: .value}) | (map(.metric) | @csv), (map(.value) | @csv)' | sed 's/"//g' > reports/sonar_summary.csv
-
-    # Check if the sonar_summary.csv file was created successfully
-    if [ ! -f reports/sonar_summary.csv ]; then
-        logErrorMessage "Failed to create reports/sonar_summary.csv"
-        echo "Build unsuccessful"
-        MI_SEND_STATUS=1
-    else
+# Process and save the SonarQube summary if metrics fetching was successful.
+# This is intentionally independent of TASK_STATUS so available metrics are
+# still sent to MI when sonar-scanner returns a failure.
+if [ "$METRICS_FETCH_SUCCESS" -eq 1 ]; then
+    if jq -e -r '
+        .component.measures
+        | if type != "array" or length == 0
+          then error("component.measures is missing or empty")
+          else .
+          end
+        | (map({key: .metric, value: (.value // "")}) | from_entries) as $values
+        | [
+            "blocker_violations",
+            "ncloc",
+            "lines",
+            "files",
+            "bugs",
+            "classes",
+            "functions",
+            "complexity",
+            "violations",
+            "critical_violations",
+            "minor_violations",
+            "security_rating",
+            "info_violations",
+            "reliability_rating",
+            "code_smells",
+            "sqale_index",
+            "duplicated_lines",
+            "duplicated_blocks",
+            "duplicated_files",
+            "duplicated_lines_density",
+            "major_violations",
+            "sqale_rating"
+          ] as $metric_order
+        | ($metric_order | join(",")),
+          ($metric_order | map($values[.] // "" | tostring) | join(","))
+    ' response.json > reports/sonar_summary.csv && [ -s reports/sonar_summary.csv ]; then
         # List the generated report file
         ls reports/sonar_summary.csv
 
@@ -234,6 +286,7 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
 
         # Only send MI data if MI_SERVER_ADDRESS is provided
         if [ -n "$MI_SERVER_ADDRESS" ]; then
+            MI_SEND_STATUS=0
 
             # Define and send all MI data as before
             for source_key in sonarqube_blocker_violations sonarqube_bugs sonarqube_security_rating sonarqube_code_smells sonarqube_major_violations; do
@@ -244,6 +297,7 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
                 export organization=$ORGANIZATION
                 export source_key=$source_key
                 export report_file_path=$REPORT_FILE_PATH
+                export url_details=$URL_DETAILS
 
                 generateMIDataJson /opt/buildpiper/data/mi.template sonar.mi
 
@@ -257,15 +311,15 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
                     MI_SEND_STATUS=1
                 fi
             done
-
-            # If all sends succeeded, set MI_SEND_STATUS=0
-            if [ -z "${MI_SEND_STATUS}" ]; then
-                MI_SEND_STATUS=0
-            fi
         else
             logInfoMessage "MI_SERVER_ADDRESS not provided, skipping MI data push."
             MI_SEND_STATUS=0
         fi
+    else
+        logErrorMessage "Failed to create a non-empty reports/sonar_summary.csv from the SonarQube response."
+        logErrorMessage "SonarQube metrics response: $(jq -c '.' response.json 2>/dev/null || tr '\n' ' ' < response.json)"
+        echo "Build unsuccessful"
+        MI_SEND_STATUS=1
     fi
 else
     MI_SEND_STATUS=1
@@ -284,39 +338,23 @@ if [ $TASK_STATUS -eq 0 ]; then
         generateOutput sonar_scan false "Sonar scan succeeded, but the report was not sent to the MI server."
     fi
 else
-    logWarningMessage "Sonar scan failed. Please check the logs for details."
-    generateOutput sonar_scan false "Sonar scan failed. Please check the logs for details."
-fi
-
-# Require sleep of 300 sec after publishing the data to fetch back the report
-if [ "$SONAR_GATE_CHECK" == "true" ]; then
-    logInfoMessage "Waiting for Quality Gate Check for "$localSleepDuration" Seconds"
-    sleep "$localSleepDuration"
-    
-    # Get SonarQube Quality Check Status
-    statusResponse=$(curl -s -u "$SONAR_TOKEN": "${SONAR_URL}/api/qualitygates/project_status?projectKey=$CODEBASE_DIR")
-    
-    # Check if curl was successful
-    if [ $? -ne 0 ]; then
-        logInfoMessage "Failed to fetch SonarQube quality gate status!"
-        exit 1
-    fi
-
-    gateStatus=$(echo "$statusResponse" | jq -r .projectStatus.status)
-
-    # Check if the status is "ERROR" (i.e., quality gate failed)
-    if [ "$gateStatus" == "ERROR" ]; then
-        logInfoMessage "SonarQube quality gate failed!"
-        exit 1
+    if [ -z "$MI_SERVER_ADDRESS" ]; then
+        logWarningMessage "Sonar scan failed. MI server not configured, so metrics were not sent."
+        generateOutput sonar_scan false "Sonar scan failed. MI server not configured, so metrics were not sent."
+    elif [ "$MI_SEND_STATUS" -eq 0 ]; then
+        logWarningMessage "Sonar scan failed, but the available metrics were successfully sent to the MI server."
+        generateOutput sonar_scan false "Sonar scan failed, but the available metrics were successfully sent to the MI server."
     else
-        logInfoMessage "SonarQube quality gate passed."
-        # exit 0
+        logWarningMessage "Sonar scan failed, and the metrics were not sent to the MI server."
+        generateOutput sonar_scan false "Sonar scan failed, and the metrics were not sent to the MI server."
     fi
-else
-    logInfoMessage "Skipping Quality Gates Test"
 fi
-
-TASK_STATUS=$?
 
 # Save the task status
-saveTaskStatus ${TASK_STATUS} ${ACTIVITY_SUB_TASK_CODE}
+saveTaskStatus "${TASK_STATUS}" "${ACTIVITY_SUB_TASK_CODE}"
+
+# A failed enforced Quality Gate must fail the container even when the generic
+# validation policy is configured to continue on other validation failures.
+if [ "$SONAR_GATE_CHECK" = "true" ] && [ "$TASK_STATUS" -ne 0 ]; then
+    exit "$TASK_STATUS"
+fi
