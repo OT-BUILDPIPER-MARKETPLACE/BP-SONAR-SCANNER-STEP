@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     findutils \
     xz-utils \
     gettext-base \
+    && pip3 install --no-cache-dir tabulate \
     && rm -rf /var/lib/apt/lists/*
 
 # Install sonar-scanner
