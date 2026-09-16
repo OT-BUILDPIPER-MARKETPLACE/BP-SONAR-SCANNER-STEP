@@ -7,7 +7,7 @@ source /opt/buildpiper/shell-functions/str-functions.sh
 source /opt/buildpiper/shell-functions/file-functions.sh
 source /opt/buildpiper/shell-functions/aws-functions.sh
 source /opt/buildpiper/shell-functions/getDataFile.sh
-source getDynamicVars.sh
+source /opt/buildpiper/getDynamicVars.sh
 
 ###############################################
 ### EVENTS TRACKING
@@ -49,7 +49,16 @@ TASK_STATUS=0
 WORKSPACE="/bp/workspace"
 SLEEP_DURATION=${SLEEP_DURATION:-30}
 
+export JAVA_HOME="/opt/jdk/jdk-21"
+export PATH="${JAVA_HOME}/bin:${PATH}"
+
+
+logInfoMessage "JAVA CONFIGURATION"
+logInfoMessage "JAVA_HOME=${JAVA_HOME}"
+
+logInfoMessage "Sonar version:"
 sonar-scanner --version
+
 
 # Set environment variables
 environment="${PROJECT_ENV_NAME:-$(getProjectEnv)}"
@@ -313,9 +322,10 @@ if [ $METRICS_FETCH_SUCCESS -eq 1 ]; then
                 export application=$APPLICATION_NAME
                 export environment=$environment
                 export service=$service
-                export organization=$ORGANIZATION
-                export source_key=$source_key
-                export report_file_path=$REPORT_FILE_PATH
+                export organization="${ORGANIZATION}"
+                export source_key="${SOURCE_KEY}"
+                export report_file_path="${REPORT_FILE_PATH}"
+                export url_detail="${URL_DETAILS}"
                 
                 generateMIDataJson /opt/buildpiper/data/mi.template "${EXEC_DIR}/sonar.mi"
                 

@@ -1,4 +1,4 @@
-FROM debian:bullseye-slim
+FROM debian:bookworm-slim
 
 # Create non-root user
 RUN groupadd -g 65522 buildpiper && \
@@ -24,10 +24,7 @@ RUN mkdir -p \
 RUN echo "Asia/Kolkata" > /etc/timezone && \
     ln -sf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime
 
-# Set non-interactive mode
 ENV DEBIAN_FRONTEND=noninteractive
-
-
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -49,38 +46,62 @@ RUN apt-get update && \
         gcc \
         findutils \
         xz-utils \
-        gettext-base && \
+        gettext-base \
+        tar && \
     rm -rf /var/lib/apt/lists/*
 
+# ------------------------------------------------------------
+# Install JDK 21
+# ------------------------------------------------------------
 
-ENV SONAR_SCANNER_VERSION=5.0.1.3006
-RUN curl -fsSL -o /tmp/sonar.zip \
-    "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux.zip" && \
-    unzip /tmp/sonar.zip -d /opt && \
-    mv /opt/sonar-scanner-* /opt/sonar-scanner && \
-    SONAR_PATH=$(find /opt/sonar-scanner -type f -name sonar-scanner | head -n 1) && \
-    ln -s "$SONAR_PATH" /usr/local/bin/sonar-scanner && \
-    chmod +x "$SONAR_PATH" && \
-    rm -rf /tmp/sonar.zip
+ENV JAVA_HOME_21=/opt/jdk/jdk-21
 
-# Create and prepare Python virtual environment
+RUN mkdir -p /opt/jdk/jdk-21 && \
+    curl -fsSL \
+      "https://api.adoptium.net/v3/binary/latest/21/ga/linux/x64/jdk/hotspot/normal/eclipse" \
+      -o /tmp/jdk21.tar.gz && \
+    tar -xzf /tmp/jdk21.tar.gz \
+      --strip-components=1 \
+      -C /opt/jdk/jdk-21 && \
+    rm -f /tmp/jdk21.tar.gz && \
+    chown -R buildpiper:buildpiper /opt/jdk
+
+# ------------------------------------------------------------
+# SonarScanner
+# ------------------------------------------------------------
+
+ENV SONAR_SCANNER_VERSION=8.0.1.6346
+
+RUN set -eux; \
+    curl -fsSL \
+      -o /tmp/sonar.zip \
+      "https://binaries.sonarsource.com/Distribution/sonar-scanner-cli/sonar-scanner-cli-${SONAR_SCANNER_VERSION}-linux-x64.zip"; \
+    unzip -q /tmp/sonar.zip -d /opt; \
+    echo "=== Extracted SonarScanner directories ==="; \
+    find /opt -maxdepth 2 -type d -name '*sonar-scanner*' -print; \
+    SCANNER_DIR=$(find /opt -maxdepth 1 -type d -name "sonar-scanner-*" | head -n 1); \
+    echo "SCANNER_DIR=${SCANNER_DIR}"; \
+    test -n "${SCANNER_DIR}"; \
+    test -f "${SCANNER_DIR}/bin/sonar-scanner"; \
+    rm -rf /opt/sonar-scanner; \
+    mv "${SCANNER_DIR}" /opt/sonar-scanner; \
+    chmod +x /opt/sonar-scanner/bin/sonar-scanner; \
+    ln -sf /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner; \
+    rm -f /tmp/sonar.zip
+# ------------------------------------------------------------
+# Python virtual environment
+# ------------------------------------------------------------
+
 RUN python3 -m venv /home/buildpiper/venv && \
     /home/buildpiper/venv/bin/pip install --no-cache-dir --upgrade pip && \
     /home/buildpiper/venv/bin/pip install --no-cache-dir tabulate cryptography
 
-ENV PATH="/home/buildpiper/venv/bin:/usr/local/bin:/usr/bin:/bin"
+# ------------------------------------------------------------
+# Environment
+# ------------------------------------------------------------
 
-# Copy scripts
-COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
-COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
-COPY --chown=buildpiper:buildpiper build.sh /opt/buildpiper/
-COPY --chown=buildpiper:buildpiper getDynamicVars.sh /opt/buildpiper/
-RUN chmod +x /opt/buildpiper/*.sh && \
-    chown -R buildpiper:buildpiper /opt/buildpiper
-
-# Set environment
-# ENV PATH="/home/buildpiper/venv/bin:/opt/sonar-scanner/bin:$PATH"
-ENV PATH="/home/buildpiper/venv/bin:/usr/local/bin:/opt/sonar-scanner/bin:/usr/bin:/bin:$PATH"
+ENV JAVA_HOME=/opt/jdk/jdk-21
+ENV PATH="/opt/jdk/jdk-21/bin:/home/buildpiper/venv/bin:/usr/local/bin:/opt/sonar-scanner/bin:/usr/bin:/bin"
 
 ENV APPLICATION_NAME=""
 ENV ORGANIZATION=""
@@ -96,10 +117,26 @@ ENV SLEEP_DURATION="30s"
 ENV VALIDATION_FAILURE_ACTION="WARNING"
 ENV NODE_OPTIONS="--max-old-space-size=8192"
 
+# Copy scripts
+COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS /opt/buildpiper/shell-functions/
+COPY --chown=buildpiper:buildpiper BP-BASE-SHELL-STEPS/data /opt/buildpiper/data
+COPY --chown=buildpiper:buildpiper build.sh /opt/buildpiper/
+COPY --chown=buildpiper:buildpiper getDynamicVars.sh /opt/buildpiper/
+
+RUN chmod +x /opt/buildpiper/*.sh && \
+    chown -R buildpiper:buildpiper /opt/buildpiper
+
 USER buildpiper
 WORKDIR /opt/buildpiper/
 
-# Verify sonar installation during build
-RUN sonar-scanner --version || (echo "[ERROR] sonar-scanner failed to execute!" && exit 1)
+# Verify Java 21
+RUN echo "Java version:" && \
+    java -version && \
+    echo "JAVA_HOME=${JAVA_HOME}"
+
+# Verify SonarScanner
+RUN echo "SonarScanner version:" && \
+    sonar-scanner --version || \
+    (echo "[ERROR] sonar-scanner failed to execute!" && exit 1)
 
 ENTRYPOINT ["/opt/buildpiper/build.sh"]
