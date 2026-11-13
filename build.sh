@@ -409,6 +409,7 @@ fi
 # SONAR SCAN SCOPE
 ###############################################################################
 SONAR_SCAN_SCOPE="${SONAR_SCAN_SCOPE:-all}"
+SONAR_PROJECT_KEY="${CODEBASE_DIR}-${environment}"
 
 if [ "${SONAR_SCAN_SCOPE}" = "latest" ]; then
 
@@ -470,32 +471,50 @@ prepareSonarScanArgs() {
 
     if [ -z "${LANGUAGE:-}" ]; then
 
-        if find . -name "*.java" | grep -q .; then
+        local source_files=()
+        local source_path extension
+        local -A language_counts=()
 
-            LANGUAGE="java"
-
-        elif find . -name "*.py" | grep -q .; then
-
-            LANGUAGE="python"
-
-        elif find . -name "*.go" | grep -q .; then
-
-            LANGUAGE="go"
-
-        elif find . -name "*.js" | grep -q .; then
-
-            LANGUAGE="javascript"
-
-        elif find . -name "*.php" | grep -q .; then
-
-            LANGUAGE="php"
-
+        if [ "${SONAR_SOURCES}" = "." ]; then
+            while IFS= read -r -d '' source_path; do
+                source_files+=("${source_path}")
+            done < <(find . -type f \( -name '*.java' -o -name '*.py' -o -name '*.go' -o -name '*.js' -o -name '*.php' -o -name '*.blade.php' \) -print0)
         else
+            local IFS=,
+            for source_path in ${SONAR_SOURCES}; do
+                if [ -f "${source_path}" ]; then
+                    source_files+=("${source_path}")
+                elif [ -d "${source_path}" ]; then
+                    while IFS= read -r -d '' source_path; do
+                        source_files+=("${source_path}")
+                    done < <(find "${source_path}" -type f \( -name '*.java' -o -name '*.py' -o -name '*.go' -o -name '*.js' -o -name '*.php' -o -name '*.blade.php' \) -print0)
+                fi
+            done
+        fi
 
-            LANGUAGE="unknown"
+        for source_path in "${source_files[@]}"; do
+            case "${source_path}" in
+                *.java) extension=java ;;
+                *.py) extension=python ;;
+                *.go) extension=go ;;
+                *.js) extension=javascript ;;
+                *.php|*.blade.php) extension=php ;;
+                *) continue ;;
+            esac
+            language_counts["${extension}"]=$(( ${language_counts["${extension}"]:-0} + 1 ))
+        done
 
+        LANGUAGE="unknown"
+        local max_count=0
+        for extension in java python go javascript php; do
+            if [ "${language_counts[${extension}]:-0}" -gt "${max_count}" ]; then
+                LANGUAGE="${extension}"
+                max_count="${language_counts[${extension}]}"
+            fi
+        done
+
+        if [ "${LANGUAGE}" = "unknown" ]; then
             logWarningMessage "Unable to detect project language. Defaulting to basic source scan."
-
         fi
 
     else
@@ -532,7 +551,7 @@ prepareSonarScanArgs() {
 
         php)
 
-            SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES} -Dsonar.language=php"
+            SONAR_ARGS="$SONAR_ARGS -Dsonar.sources=${SONAR_SOURCES}"
 
             if [ -f "coverage/clover.xml" ]; then
 
@@ -622,14 +641,14 @@ fi
 ###############################################################################
 # RUN SONAR SCANNER
 ###############################################################################
-logInfoMessage "Executing Sonar Scan for ${LANGUAGE}: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=${SONAR_URL} -Dsonar.projectKey=${CODEBASE_DIR} ${SONAR_ARGS}"
+logInfoMessage "Executing Sonar Scan for ${LANGUAGE}: sonar-scanner -Dsonar.token=**** -Dsonar.host.url=${SONAR_URL} -Dsonar.projectKey=${SONAR_PROJECT_KEY} ${SONAR_ARGS}"
 
 set +e
 
 sonar-scanner \
     -Dsonar.token="${SONAR_TOKEN}" \
     -Dsonar.host.url="${SONAR_URL}" \
-    -Dsonar.projectKey="${CODEBASE_DIR}" \
+    -Dsonar.projectKey="${SONAR_PROJECT_KEY}" \
     ${SONAR_ARGS}
 
 SONAR_STATUS=$?
@@ -687,7 +706,7 @@ response=$(curl \
     -w "%{http_code}" \
     -u "${SONAR_TOKEN}:" \
     -X GET \
-    "${SONAR_URL}/api/measures/component?component=${CODEBASE_DIR}&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" \
+    "${SONAR_URL}/api/measures/component?component=${SONAR_PROJECT_KEY}&metricKeys=ncloc,lines,files,classes,functions,complexity,violations,blocker_violations,critical_violations,major_violations,minor_violations,info_violations,code_smells,bugs,reliability_rating,security_rating,sqale_index,duplicated_lines,duplicated_blocks,duplicated_files,duplicated_lines_density,sqale_rating&format=json" \
     -o "${RESPONSE_FILE}")
 
 CURL_STATUS=$?
@@ -1186,7 +1205,7 @@ jq -n \
     --arg mi_status "${MI_SEND_STATUS}" \
     --arg metrics_status "${METRICS_FETCH_SUCCESS}" \
     --arg sonar_url "${SONAR_URL}" \
-    --arg project_key "${CODEBASE_DIR}" \
+    --arg project_key "${SONAR_PROJECT_KEY}" \
     --arg language "${LANGUAGE}" \
     --arg branch "${CURRENT_BRANCH}" \
     --arg scan_scope "${SONAR_SCAN_SCOPE}" \
@@ -1260,7 +1279,7 @@ jq -n \
     --arg mi_status "${MI_SEND_STATUS}" \
     --arg metrics_status "${METRICS_FETCH_SUCCESS}" \
     --arg sonar_url "${SONAR_URL}" \
-    --arg project_key "${CODEBASE_DIR}" \
+    --arg project_key "${SONAR_PROJECT_KEY}" \
     --arg language "${LANGUAGE}" \
     --arg branch "${CURRENT_BRANCH}" \
     --arg scan_scope "${SONAR_SCAN_SCOPE}" \
